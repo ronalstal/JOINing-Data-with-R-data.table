@@ -5,4 +5,7 @@ Tutorial on how to perform the different types of SQL-JOINs in R using data.tabl
 
 This project created an article in `R-Markdown/knitr` published [here on RPubs](http://rpubs.com/ronasta/join_data_tables).  
 The source file is **joining_data.Rmd**.  
+  
+  
+**joining_data.md** contains the generated output which can be viewd here; *it's nicer than the published html*.
 
