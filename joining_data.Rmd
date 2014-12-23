@@ -1,0 +1,299 @@
+---
+title: "JOINing data in R using data.table"
+author: "Ronald Stalder"
+date: "23-12-2014"
+output: 
+  html_document:
+    keep_md: true
+---
+
+## &nbsp;  
+#### Tutorial on how to perform the different types 
+#### of SQL-JOINs in R using data.table  
+
+## &nbsp;  
+## Synopsis
+
+  
+- This tutorial is **based on the following articles**:    
+       - [basic overview of SQL JOINs by Pinal Dave][Pinal]  
+       - the Wikipedia entry on [Join (SQL)](http://en.wikipedia.org/wiki/Join_(SQL))  
+       - more elaborate: [The joy of joining data.tables](http://www.magesblog.com/2014/06/the-joy-of-joining-datatables.html)  
+  
+- For **joining data.tables, the basics are**:    
+       - the `ON` or `USING` clause is defined by setting the keys on the tables with `setkey()`  
+       - without anything else, `TABLE_X[TABLE_Y]` returns a **right outer join**; setting `nomatch=0` it returns a **inner join**  
+  
+- The **source of this tutorial**, with the example datasets, is available [here on GitHub](https://github.com/ronasta/JOINing-Data-with-R-data.table)  
+
+
+## &nbsp;  
+## Summary
+  
+  
+JOIN type | DT syntax | data.table::merge() syntax
+------ | ----- | -----
+INNER | X[Y, nomatch=0] | merge(X, Y, all=FALSE)
+LEFT OUTER | Y[X] | merge(X, Y, all.x=TRUE)
+RIGHT OUTER | X[Y] | merge(X, Y, all.y=TRUE)
+FULL OUTER | - | merge(X, Y, all=TRUE)
+FULL OUTER WHERE NULL (NOT INNER) | - | merge(X, Y, all=TRUE), subset NA
+CROSS (cartesian) | - | - (see below)
+
+## &nbsp;  
+## Example Data
+
+The example data consists of the following two tables:  
+
+```{r data-1, echo=FALSE, results='hide'}
+
+library(data.table)
+
+Employees <- as.data.table(read.csv("data/Employees.csv", stringsAsFactors=FALSE))
+Departments <- as.data.table(read.csv("data/Departments.csv", stringsAsFactors=FALSE))
+
+str(Employees)
+print("")
+str(Departments)
+
+```
+
+&nbsp;  
+
+```{r data-2, echo=FALSE}
+knitr::kable(Employees,"html",caption="table Employees")
+
+```
+
+&nbsp;  
+
+```{r data-3, echo=FALSE}
+
+knitr::kable(Departments,"html",caption="table Departments")
+
+```
+
+## &nbsp;  
+## Inner Join
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure1 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/inner%20join.jpg)  
+
+**the *INNER JOIN* returns the rows with a match in both tables**
+
+&nbsp;  
+
+```{r inner-1}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# perform the join, eliminating not matched rows from Right
+Result <- Employees[Departments, nomatch=0]
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Inner Join")
+```
+
+&nbsp;  
+**note:**  
+
+> Employee #6, Ferdinand, has not been returned, as he's in a yet to be created department 21.  
+> Neither has department #14, Research, as there are no employees.  
+
+## &nbsp;  
+## Left Outer Join
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure2 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/left%20join.jpg)  
+
+**the *LEFT OUTER JOIN* returns all the rows from the left table, filling in matched columns (or NA) from the right table**
+
+&nbsp;  
+
+```{r leftout-1}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# perform the join using the merge function
+Result <- merge(Employees,Departments, all.x=TRUE)
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Left Outer Join")
+```
+
+&nbsp;  
+**note:**  
+
+> Employee #6, Ferdinand, has been returned with department name as NA.  
+> Department #14, Research, has not been returned.  
+> If the column order Left &rarr; Right has to be preserved, we need to elaborate:  
+
+&nbsp;  
+
+```{r leftout-2}
+
+# get the columns of the tables:
+leftCols <- colnames(Employees)
+rightCols <- colnames(Departments)
+# remove the match key of the Right table
+rightCols <- setdiff(rightCols,key(Departments))
+# set the column order
+setcolorder(Result,c(leftCols,rightCols))
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Left Outer Join, preserved column order")
+```
+
+#### &nbsp;  
+#### A typical use case is to match in labels, e.g. in our Employees table  
+#### substitute the department number by its name:
+#### &nbsp;  
+
+```{r leftout-3}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# defining the Result columns, substitute Department by DepartmentName
+leftCols <- colnames(Employees)
+leftCols <- sub("Department","DepartmentName",leftCols)
+
+# perform the join, inverting the tables, return defined columns
+Result <- Departments[Employees][, leftCols, with=FALSE]
+
+# -- or --
+# Result <- merge(Employees, Departments, all.x=TRUE)
+# Result <- Result[, setCols, with=FALSE]
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Left Outer Join - matching in DepartmentName")
+```
+
+
+## &nbsp;  
+## Right Outer Join
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure2 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/right%20join.jpg)  
+
+**the *RIGHT OUTER JOIN* returns all the rows from the right table, filling in matched columns (or NA) from the left table**
+
+&nbsp;  
+
+```{r rightout-1}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# perform the join - this is the basic join for data.table
+Result <- Employees[Departments]
+# this corresponds to
+# Result <- merge(Employees,Departments, all.y=TRUE)
+
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Right Outer Join")
+```
+
+
+## &nbsp;  
+## Full Outer Join
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure2 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/outer%20join.jpg)  
+
+**the *FULL OUTER JOIN* returns all the rows from both tables, filling in matched columns (or NA)**
+
+&nbsp;  
+
+```{r fullout-1}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# perform the join
+Result <- merge(Employees,Departments, all=TRUE)
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Full Outer Join")
+```
+
+
+## &nbsp;  
+## Full Outer Join Where NULL - a.k.a "NOT INNER join"
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure2 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/outer%20join%20null.jpg)  
+
+**the *NOT INNER JOIN* returns all the rows from both tables, where no match was obtained**
+
+&nbsp;  
+
+```{r notinner-1}
+
+# set the ON clause as keys of the tables:
+setkey(Employees,Department)
+setkey(Departments,Department)
+
+# perform the join, retain only NA from matched cols on both side
+Result <- merge(Employees,Departments, all=TRUE)
+Result <- Result[is.na(EmployeeName) | is.na(DepartmentName)]
+
+```
+&nbsp;  
+```{r echo=FALSE}
+knitr::kable(Result,"html",caption="Full Outer Join Where Null")
+```
+
+
+## &nbsp;  
+## Cross Join
+
+*Figure linked from [Pinal Dave][Pinal]*  
+![Figure2 from Pinal Dave](http://www.pinaldave.com/bimg/March09UG/cross%20join%20-%20half.jpg)  
+
+**the *CROSS JOIN* returns all the rows from one table combined with all the rows from the other**  
+
+As the documentation `?data.table` states, this ***"is (deliberately) difficult to achieve in data.table"***. So, I'll leave this as an excersise to the reader :-). In the context of the examples here, I can't see the usefulness of a cross join, anyway.
+
+
+## &nbsp;
+## System and R-Packages Information
+
+```{r sys-1, results='hold'}
+
+if (Sys.which("uname") != "") system("uname -srpi", intern=TRUE)
+if (Sys.which("lsb_release") != "") 
+    print(paste("Ubuntu:",system("lsb_release -rc", intern=TRUE)[1]))
+#print(paste("Rstudio version:", rstudio::versionInfo()$version))  # does not work in Rmd
+
+```
+```{r sys-2}
+
+sessionInfo()
+
+```
+  
+The report was produced using `RStudio/knittr`  
+**on `r format(Sys.time(), "%F at %H:%M:%S (%Z, GMT%z)")`**  
+
+[Pinal]:http://blog.sqlauthority.com/2009/04/13/sql-server-introduction-to-joins-basic-of-joins/

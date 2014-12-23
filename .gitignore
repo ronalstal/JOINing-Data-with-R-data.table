@@ -3,6 +3,7 @@
 *.Rproj
 .Rhistory
 .RData
+*_cache
 
-# rendered .md files except assignment
-README.html
+# rendered .md files
+*.html
