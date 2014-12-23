@@ -1,0 +1,8 @@
+# R-Studio stuff
+.Rproj.user
+*.Rproj
+.Rhistory
+.RData
+
+# rendered .md files except assignment
+README.html
